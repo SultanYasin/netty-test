@@ -2,6 +2,56 @@ package com.example.demotest.scal;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.servlet.DispatcherServlet;
+
+import java.net.InetSocketAddress;
+public class LoadBalancerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+
+    private final LoadBalancer loadBalancer;
+
+    public LoadBalancerHandler(LoadBalancer loadBalancer) {
+        this.loadBalancer = loadBalancer;
+    }
+
+    @Override
+    public void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+        // Get the server to forward the request to
+        InetSocketAddress serverAddress = loadBalancer.getServer(ctx.channel());
+
+        // Create a new client channel and forward the request to the server
+        Bootstrap clientBootstrap = new Bootstrap();
+        clientBootstrap.group(ctx.channel().eventLoop())
+                .channel(NioSocketChannel.class)
+                .handler(new SimpleChannelInboundHandler<FullHttpResponse>() {
+                    @Override
+                    protected void channelRead0(ChannelHandlerContext ctx, FullHttpResponse response) throws Exception {
+                        // Send the response back to the client
+                        ctx.writeAndFlush(response);
+                    }
+                });
+
+        ChannelFuture future = clientBootstrap.connect(serverAddress);
+        future.addListener((ChannelFutureListener) channelFuture -> {
+            if (channelFuture.isSuccess()) {
+                // Forward the request to the server
+                channelFuture.channel().writeAndFlush(request);
+            } else {
+                // If the connection to the server failed, close the client channel
+                ctx.close();
+            }
+        });
+    }
+}
+
+
+/*
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -64,3 +114,4 @@ public class LoadBalancerHandler extends SimpleChannelInboundHandler<FullHttpReq
     }
 }
 
+*/

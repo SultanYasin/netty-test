@@ -21,8 +21,28 @@ public class LoadBalancerInitializer extends ChannelInitializer<SocketChannel> {
     @Override
     protected void initChannel(SocketChannel ch) throws Exception {
         ChannelPipeline pipeline = ch.pipeline();
+
+        pipeline.addLast(new HttpServerCodec());
+        pipeline.addLast(new HttpObjectAggregator(65536));
+        pipeline.addLast(new LoadBalancerHandler(loadBalancer));
+    }
+}
+
+
+/*
+public class LoadBalancerInitializer extends ChannelInitializer<SocketChannel> {
+
+    private final LoadBalancer loadBalancer;
+
+    public LoadBalancerInitializer(LoadBalancer loadBalancer) {
+        this.loadBalancer = loadBalancer;
+    }
+
+    @Override
+    protected void initChannel(SocketChannel ch) throws Exception {
+        ChannelPipeline pipeline = ch.pipeline();
         pipeline.addLast(new HttpClientCodec());
         pipeline.addLast(new HttpObjectAggregator(65536));
         pipeline.addLast(new LoadBalancerHandler((List<InetSocketAddress>) loadBalancer));
     }
-}
+}*/
